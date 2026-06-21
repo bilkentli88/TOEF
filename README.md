@@ -2,18 +2,16 @@
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Status](https://img.shields.io/badge/status-research-orange)
-![Reproducibility](https://img.shields.io/badge/focus-reproducibility-informational)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![Reproducibility](https://img.shields.io/badge/focus-reproducibility-informational)
 
 ## Overview
 
-This repository supports the paper:
+This repository contains the code accompanying the paper:
 
 **Beyond Fidelity: Trust-Oriented Evaluation of Synthetic ECG Generators for Medical AI**
 
-Synthetic electrocardiogram (ECG) generation is increasingly used for medical AI development, data augmentation, and model evaluation. However, commonly used scalar metrics such as distributional fidelity or downstream utility can miss clinically relevant failure modes. A generator may appear realistic or useful under one metric while producing physiologically invalid, unstable, or class-imbalanced synthetic signals.
-
-This repository provides code and analysis artifacts for a **Trust-Oriented Evaluation Framework** that represents generator behavior through a multi-dimensional **Trust Profile** rather than a single aggregate score.
+The paper introduces a **Trust-Oriented Evaluation Framework** for synthetic ECG and medical time-series generation. Instead of reducing generator quality to a single fidelity or utility score, the framework represents generator behavior through a multi-dimensional **Trust Profile**.
 
 The Trust Profile contains six dimensions:
 
@@ -24,19 +22,31 @@ The Trust Profile contains six dimensions:
 5. **Class-wise reliability**
 6. **Physiological validity**
 
-The framework is evaluated using:
+The empirical study evaluates adversarial, variational, and diffusion-based synthetic ECG generators on two ECG cohorts:
 
-- a controlled synthetic time-series sanity check,
-- the MIT-BIH Arrhythmia Database with five AAMI-style classes `{N,S,V,F,Q}`,
-- the MIT-BIH Supraventricular Arrhythmia Database (SVDB) as an external companion cohort using `{N,S,V}`,
-- three deep generator families: **TimeGAN**, **LSTM-VAE**, and **DDPM**,
-- two diagnostic proxy generators: **Baseline** and **Robust**.
+- **MIT-BIH Arrhythmia Database** using the five-class grouping `{N,S,V,F,Q}`
+- **MIT-BIH Supraventricular Arrhythmia Database (SVDB)** using the sufficiently represented classes `{N,S,V}`
 
-## Main purpose
+The evaluated deep generative models are:
 
-The code is intended to reproduce the paper's central empirical claim:
+- **TimeGAN** — adversarial time-series generator
+- **LSTM-VAE** — variational recurrent generator
+- **DDPM** — denoising diffusion probabilistic model
 
-> Synthetic ECG generators should not be ranked using fidelity or utility alone. Their suitability depends on the deployment context and on trade-offs among fidelity, diversity, stability, utility, class-wise reliability, and physiological validity.
+Two additional proxy generators, **Baseline** and **Robust**, are included as diagnostic references for interpreting stability and validity behavior. They are not treated as deployable deep generators in the risk-aware selection analysis.
+
+## Main claim
+
+The repository supports the paper's central claim:
+
+> Synthetic ECG generators should not be ranked using fidelity or utility alone. Generator suitability depends on deployment context and on trade-offs among fidelity, diversity, stability, diagnostic utility, class-wise reliability, and physiological validity.
+
+The experiments show that no generator is uniformly preferable:
+
+- **DDPM** achieves strong diversity, macro-F1, class-wise reliability, and physiological validity.
+- **LSTM-VAE** remains preferable under stability-constrained safety settings.
+- **TimeGAN** can appear competitive under some fidelity or accuracy views but performs poorly under physiological-validity constraints.
+- Under the most conservative clinical constraints, the framework can return **no admissible generator**.
 
 ## Repository structure
 
@@ -44,40 +54,37 @@ The code is intended to reproduce the paper's central empirical claim:
 .
 ├── README.md
 ├── requirements.txt
-├── LICENSE
-├── CITATION.cff
-├── .gitignore
-├── scripts/
-│   ├── mitbih_multi_class_colab.py
-│   ├── svdb_multi_class_colab_AIM.py
-│   ├── ecg_ddpm_colab.py
+├── src/
+│   ├── run_mitbih_timegan_lstmvae.py
+│   ├── run_svdb_timegan_lstmvae.py
+│   ├── train_generate_ddpm_ecg.py
 │   ├── evaluate_ddpm_mitbih_trust.py
 │   ├── evaluate_ddpm_svdb_trust.py
-│   └── generate_figure2_mitbih_trust_profile_ddpm.py
-├── results/
-│   ├── mitbih_trust_profiles_summary.csv
-│   ├── svdb_trust_profiles_summary.csv
-│   ├── ddpm_trust_profiles_summary.csv
-│   └── ddpm_svdb_trust_profiles_summary.csv
+│   └── plot_mitbih_trust_profile_radar.py
 ├── figures/
 │   ├── Figure1_Framework_AIM.pdf
 │   └── Figure2_MIT_BIH_Trust_Profile_DDPM_final.pdf
-└── docs/
-    └── index.md
+└── results/
+    ├── mitbih_trust_profiles_summary.csv
+    ├── svdb_trust_profiles_summary.csv
+    ├── ddpm_trust_profiles_summary.csv
+    └── ddpm_svdb_trust_profiles_summary.csv
 ```
 
-The filenames above reflect the intended final layout. Some scripts or results may need to be copied from the experimental workspace before public release.
+Only the `src/` folder is required to run the scripts. The `figures/` and `results/` folders are recommended for organizing generated outputs.
 
-## Data
+## Data availability
 
-This repository does **not** redistribute ECG datasets. The experiments use public PhysioNet resources:
+This repository does **not** redistribute ECG datasets.
+
+The experiments use public PhysioNet datasets:
 
 - MIT-BIH Arrhythmia Database
 - MIT-BIH Supraventricular Arrhythmia Database (SVDB)
 
-Users should download the datasets from PhysioNet and respect the corresponding licenses and citation requirements.
+Users should download the datasets from PhysioNet and follow the corresponding license and citation requirements.
 
-Expected local layout:
+A typical local layout is:
 
 ```text
 data_mitbih/
@@ -93,39 +100,43 @@ data_svdb/
   ...
 ```
 
-## Experimental components
+## Installation
 
-### 1. Controlled synthetic sanity check
+Create a Python environment and install the dependencies:
 
-The controlled experiment verifies that two generators can obtain identical fidelity values while differing in generation stability and downstream utility.
-
-### 2. MIT-BIH five-class ECG experiment
-
-The MIT-BIH experiment evaluates synthetic ECG generation for the classes:
-
-```text
-N, S, V, F, Q
+```bash
+pip install -r requirements.txt
 ```
 
-The experiment uses record-wise splits to avoid patient-level leakage and repeats the full process over three seeds:
+The scripts were developed for Python 3.10+.
 
-```text
-19, 88, 123
-```
+## Scripts
 
-### 3. SVDB companion-cohort experiment
+### `run_mitbih_timegan_lstmvae.py`
 
-SVDB is used as a compact external ECG cohort. Because fusion and unknown beats are too rare for stable record-wise evaluation, the SVDB experiment is restricted to:
+Runs the MIT-BIH Trust Profile experiment for:
 
-```text
-N, S, V
-```
+- Baseline proxy
+- Robust proxy
+- TimeGAN
+- LSTM-VAE
 
-### 4. DDPM experiments
+This script produces the raw and summary Trust Profile outputs for the non-diffusion generators in the five-class MIT-BIH setting.
 
-The DDPM baseline uses a one-dimensional denoising diffusion model for class-conditional ECG beat generation. The DDPM experiments use broad denoised-output clipping during sampling for numerical stabilization, while physiological validity is evaluated with stricter fixed constraints.
+### `run_svdb_timegan_lstmvae.py`
 
-Representative DDPM settings:
+Runs the SVDB companion-cohort experiment for:
+
+- TimeGAN
+- LSTM-VAE
+
+SVDB is restricted to `{N,S,V}` because the `F` and `Q` classes are too rare for stable record-wise evaluation.
+
+### `train_generate_ddpm_ecg.py`
+
+Trains and samples a class-conditional one-dimensional DDPM for ECG beat generation.
+
+Representative DDPM settings used in the paper:
 
 ```text
 epochs = 120
@@ -138,39 +149,46 @@ samples_per_class = 2000
 x0_clip = 6
 ```
 
-Physiological validity is evaluated using:
+The broad denoised-output clipping value is used for numerical stabilization during sampling. Physiological validity is still evaluated using stricter fixed validity constraints.
+
+### `evaluate_ddpm_mitbih_trust.py`
+
+Computes the DDPM Trust Profile metrics for the MIT-BIH experiment.
+
+The script expects generated DDPM samples for seeds:
 
 ```text
-max |x_t| <= 5
-max |x_{t+1} - x_t| <= 4
+19, 88, 123
 ```
 
-## Reproducing the analysis
+### `evaluate_ddpm_svdb_trust.py`
 
-### Install dependencies
+Computes the DDPM Trust Profile metrics for the SVDB experiment.
 
-```bash
-pip install -r requirements.txt
+The script expects generated DDPM samples for the same seeds:
+
+```text
+19, 88, 123
 ```
 
-### Run MIT-BIH experiments
+### `plot_mitbih_trust_profile_radar.py`
 
-```bash
-python scripts/mitbih_multi_class_colab.py
+Generates the reference-anchored MIT-BIH Trust Profile radar plot used as Figure 2 in the paper.
+
+Outputs:
+
+```text
+Figure2_MIT_BIH_Trust_Profile_DDPM_final.pdf
+Figure2_MIT_BIH_Trust_Profile_DDPM_final.png
+figure2_normalized_scores.csv
 ```
 
-### Run SVDB experiments
+## Example DDPM command
+
+Example MIT-BIH run for seed 19:
 
 ```bash
-python scripts/svdb_multi_class_colab_AIM.py
-```
-
-### Run DDPM generation
-
-Example for MIT-BIH seed 19:
-
-```bash
-python scripts/ecg_ddpm_colab.py \
+python src/train_generate_ddpm_ecg.py \
   --data_dir outputs/ddpm_prepared_mitbih/seed_19 \
   --x_file X_train.npy \
   --y_file y_train.npy \
@@ -189,10 +207,10 @@ python scripts/ecg_ddpm_colab.py \
   --save_checkpoint
 ```
 
-Example for SVDB seed 19:
+Example SVDB run for seed 19:
 
 ```bash
-python scripts/ecg_ddpm_colab.py \
+python src/train_generate_ddpm_ecg.py \
   --data_dir outputs/ddpm_prepared_svdb/seed_19 \
   --x_file X_train.npy \
   --y_file y_train.npy \
@@ -211,20 +229,18 @@ python scripts/ecg_ddpm_colab.py \
   --save_checkpoint
 ```
 
-### Evaluate DDPM Trust Profiles
+## Physiological-validity constraints
 
-```bash
-python scripts/evaluate_ddpm_mitbih_trust.py
-python scripts/evaluate_ddpm_svdb_trust.py
+Generated ECG beats are evaluated in the normalized representation. A generated beat is counted as physiologically valid if it satisfies both constraints:
+
+```text
+max |x_t| <= 5
+max |x_{t+1} - x_t| <= 4
 ```
 
-### Generate Figure 2
+These fixed constraints are intended to detect obvious amplitude and slew-rate violations. They do not replace expert clinical validation.
 
-```bash
-python scripts/generate_figure2_mitbih_trust_profile_ddpm.py
-```
-
-## Main reported results
+## Main reported DDPM results
 
 ### MIT-BIH DDPM Trust Profile
 
@@ -250,15 +266,28 @@ python scripts/generate_figure2_mitbih_trust_profile_ddpm.py
 | Class-wise reliability ↑ | 0.874 ± 0.047 |
 | Physiological validity ↑ | 0.847 ± 0.015 |
 
-## Interpretation
+## Risk-aware interpretation
 
-The experiments show that generator choice is deployment-dependent:
+The framework separates hard feasibility constraints from preference-based model selection.
 
-- **LSTM-VAE** is preferred under safety-critical and moderate medical augmentation constraints because of stronger perturbation stability.
-- **DDPM** is preferred for exploratory filtered augmentation because of stronger diversity, macro-F1, class-wise reliability, and physiological validity.
-- Under the most conservative clinical constraints, the framework can return **no admissible generator**.
+For the MIT-BIH experiment:
 
-This supports the paper's main conclusion: trustworthy synthetic ECG evaluation requires multi-dimensional, context-sensitive assessment rather than fidelity-centric ranking.
+| Deployment context | Selected outcome |
+|---|---|
+| Safety-critical synthetic ECG augmentation | LSTM-VAE |
+| Moderate medical augmentation | LSTM-VAE |
+| Exploratory augmentation with filtering | DDPM |
+| Conservative clinical pipeline | No admissible generator |
+
+This illustrates the intended use of the Trust Profile: different deployment contexts can produce different admissible choices.
+
+## Reproducibility notes
+
+- The experiments use three random seeds: `19`, `88`, and `123`.
+- MIT-BIH uses a record-wise split to avoid patient-level leakage.
+- SVDB is used as a compact external companion-cohort check.
+- DDPM results are evaluated separately and then integrated into the Trust Profile analysis.
+- The scripts are designed for research reproducibility rather than clinical deployment.
 
 ## Citation
 
@@ -267,7 +296,7 @@ If this repository supports your work, please cite the accompanying paper:
 ```bibtex
 @article{trust_ecg_generation,
   title   = {Beyond Fidelity: Trust-Oriented Evaluation of Synthetic ECG Generators for Medical AI},
-  author  = {Author information omitted for peer review},
+  author  = {Aykut T. Altay},
   journal = {Under review},
   year    = {2026}
 }
@@ -276,3 +305,7 @@ If this repository supports your work, please cite the accompanying paper:
 ## License
 
 This repository is released under the MIT License. Dataset licenses remain governed by the original data providers.
+
+## Disclaimer
+
+This code is provided for research reproducibility. It is not intended for clinical decision-making, diagnostic use, or deployment in medical workflows.
